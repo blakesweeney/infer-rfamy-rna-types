@@ -1,0 +1,15 @@
+# Improving Rfam's RNA Types
+
+This is some code to try to improve the ISNDC type that Rfam families get.
+
+# Environment
+
+```sh
+pip install -r requirements
+```
+
+# Usage
+
+```sh
+make
+```

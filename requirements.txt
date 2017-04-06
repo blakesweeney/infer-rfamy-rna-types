@@ -1,0 +1,5 @@
+click
+networkx
+attrs
+toposort
+git+https://github.com/dhimmel/obonet.git#egg=obonet
