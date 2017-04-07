@@ -42,7 +42,7 @@ Results
 
 The inferred types are in ``data/infered-types.txt``. A few quick summaries:
 
-.. code:: shell
+.. code-block:: shell
   $ xsv select method data/infered-types.txt | sort | uniq -c
       479 fallbacks
         1 method
@@ -85,7 +85,7 @@ Requirements
 
 You must also install the requirments in ``requirements.txt``.
 
-.. code:: shell
+.. code-block:: shell
   $ pip install -r requirements.txt
 
 Usage
@@ -93,5 +93,5 @@ Usage
 
 To produce a csv of family to INSDC RNA types in ``data/infered-types.txt``.
 
-.. code:: shell
+.. code-block:: shell
   $ make
