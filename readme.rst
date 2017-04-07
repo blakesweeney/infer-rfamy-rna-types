@@ -12,7 +12,7 @@ families. It has a series of different methods for selecting the name. In the
 order they are attempted:
 
 manual
-Check if there is a manually assigned RNA type for the family. Currently
+  Check if there is a manually assigned RNA type for the family. Currently
   there are none.
 
 name
@@ -42,7 +42,8 @@ Results
 
 The inferred types are in ``data/infered-types.txt``. A few quick summaries:
 
-.. code-block:: shell
+.. code:: shell
+
   $ xsv select method data/infered-types.txt | sort | uniq -c
       479 fallbacks
         1 method
@@ -85,7 +86,8 @@ Requirements
 
 You must also install the requirments in ``requirements.txt``.
 
-.. code-block:: shell
+.. code:: shell
+
   $ pip install -r requirements.txt
 
 Usage
@@ -93,5 +95,6 @@ Usage
 
 To produce a csv of family to INSDC RNA types in ``data/infered-types.txt``.
 
-.. code-block:: shell
+.. code:: shell
+
   $ make
