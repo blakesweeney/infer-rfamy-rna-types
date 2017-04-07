@@ -328,8 +328,8 @@ class WithFallBacks(object):
     def __call__(self, family):
         result = self.from_manual(family) or \
             self.from_name(family) or \
-            self.from_rna_type(family) or \
-            self.from_so_terms(family)
+            self.from_so_terms(family) or \
+            self.from_rna_type(family)
 
         if not result:
             possible = self.so_term_search(family)
