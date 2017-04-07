@@ -2,4 +2,4 @@ click
 networkx
 attrs
 toposort
-git+https://github.com/dhimmel/obonet.git#egg=obonet
+-e git+https://github.com/dhimmel/obonet.git#egg=obonet

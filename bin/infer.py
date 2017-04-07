@@ -14,7 +14,6 @@ import attr
 from attr.validators import instance_of as is_a
 import click
 from obonet.read import read_obo
-import networkx as nx
 
 logger = logging.getLogger(__name__)
 
@@ -46,19 +45,8 @@ INSDCTypes = Enum(
         "vault_RNA",
         "rRNA",
         "tRNA",
+        'tmRNA',
     ])
-
-
-INSDCTree = nx.Graph()
-INSDCTree.add_edges_from([
-    ('ncRNA', "ribozyme"),
-    ('ribozyme', 'hammerhead_ribozyme'),
-    ('ribozyme', 'autocatalytically_spliced_intron'),
-
-    ('ncRNA', 'tRNA'),
-    ('ncRNA', 'rRNA'),
-    ('ncRNA', 'Y_RNA'),
-])
 
 
 def rna_type_to_key(rna_type):
@@ -101,13 +89,13 @@ class RfamFamily(object):
 class InferredRfamType(object):
     family = attr.ib(validator=is_a(RfamFamily))
     method = attr.ib(validator=is_a(str))
-    rna_type = attr.ib(validator=is_a(set))
+    rna_types = attr.ib(validator=is_a(frozenset))
 
     @classmethod
     def build(cls, family, name, result):
         rna_types = set()
         if isinstance(result, str):
-            rna_types.add(name)
+            rna_types.add(result)
         elif isinstance(result, (list, set, tuple)):
             rna_types.update(result)
         elif result is None:
@@ -119,23 +107,39 @@ class InferredRfamType(object):
         for rna_type in rna_types:
             if rna_type == 'antisense':
                 rna_type = 'antisense_RNA'
-            elif rna_type is None:
-                rna_type = 'other'
-            elif hasattr(INSDCTypes, rna_type):
-                rna_type = getattr(INSDCTypes, rna_type)
-            elif not hasattr(INSDCTypes, rna_type):
-                rna_type = 'other'
-
-            final.add(rna_type)
+            if rna_type is None:
+                continue
+            final.add(getattr(INSDCTypes, rna_type))
 
         return cls(
             family=family,
             method=name,
-            rna_type=final,
+            rna_types=frozenset(final),
         )
 
+    def remove(self, value):
+        if value not in self.rna_types:
+            return self
+        return attr.assoc(
+            self,
+            rna_types=frozenset(r for r in self.rna_types if r != value)
+        )
+
+    def simple(self):
+        return {
+            'family': self.family.id,
+            'method': self.method,
+            'rna_types': ';'.join(r.name for r in self.rna_types),
+        }
+
+    def __contains__(self, value):
+        return value in self.rna_types
+
+    def __len__(self):
+        return len(self.rna_types)
+
     def __bool__(self):
-        return bool(self.rna_type)
+        return bool(self.rna_types)
 
 
 @attr.s(frozen=True)
@@ -146,12 +150,18 @@ class ManualInference(object):
     def build(cls, filename):
         with open(filename, 'r', 'utf-8') as handle:
             loaded = json.load(handle)
-            return cls(assignments=loaded['assignments'])
+            return cls(assignments=loaded['hardcoded'])
+
+    @property
+    def name(self):
+        return 'manual'
 
     def __call__(self, family):
-        if family.id in self.assignments:
-            return self.assignments[family.id]
-        return None
+        return InferredRfamType.build(
+            family,
+            self.name,
+            self.assignments.get(family.id, None)
+        )
 
 
 @attr.s(frozen=True)
@@ -166,11 +176,15 @@ class FromName(object):
                 informative_names=loaded['informative_names'],
             )
 
+    @property
+    def name(self):
+        return 'name'
+
     def __call__(self, family):
         for pattern, rna_type in self.informative_names.items():
             if re.search(pattern, family.name, re.IGNORECASE):
-                return rna_type
-        return None
+                return InferredRfamType.build(family, self.name, rna_type)
+        return InferredRfamType.build(family, self.name, None)
 
 
 @attr.s()
@@ -186,8 +200,16 @@ class FromRnaType(object):
                 mapping={rna_type_to_key(r): v for r, v in given.items()}
             )
 
+    @property
+    def name(self):
+        return 'rna-type'
+
     def __call__(self, family):
-        return self.mapping.get(family.rna_type, None)
+        return InferredRfamType.build(
+            family,
+            self.name,
+            self.mapping.get(family.rna_type, None)
+        )
 
 
 @attr.s()
@@ -196,15 +218,23 @@ class FromSoTerms(object):
     max_depth = attr.ib(validator=is_a(int))
 
     @classmethod
-    def build(cls, manual, filename, max_depth):
+    def build(cls, manual_file, filename, max_depth):
+        with open(manual_file, 'r', 'utf-8') as handle:
+            loaded = json.load(handle)
+            assignments = loaded['assignments']
+
         graph = read_obo(filename)
-        for so_term, isndc in manual.assignments.items():
+        for so_term, isndc in assignments.items():
             graph.node[so_term]['isndc'] = isndc
 
         return cls(
             graph=graph,
             max_depth=max_depth
         )
+
+    @property
+    def name(self):
+        return 'so-term'
 
     def dfs(self, term, depth):
         if term not in self.graph:
@@ -232,85 +262,71 @@ class FromSoTerms(object):
         rna_types = set()
         for so_term in family.so_terms:
             rna_types.update(self.search(so_term))
-        return rna_types
+        return InferredRfamType.build(family, self.name, rna_types)
 
 
+@attr.s()
 class WithFallBacks(object):
-    pass
-
-
-@attr.s(frozen=True)
-class INSDCInference(object):
-    methods = attr.ib(validator=is_a(list))
+    from_manual = attr.ib(validator=is_a(ManualInference))
+    from_name = attr.ib(validator=is_a(FromName))
+    from_rna_type = attr.ib(validator=is_a(FromRnaType))
+    from_so_terms = attr.ib(validator=is_a(FromSoTerms))
 
     @classmethod
     def build(cls, manual_file, obo_file, max_depth):
-        manual = ManualInference.build(manual_file)
-        return cls(methods=[
-            manual,
-            FromName.build(manual_file),
-            FromRnaType.build(manual_file),
-            FromSoTerms.build(manual, obo_file, max_depth)
-        ])
+        return cls(
+            from_manual=ManualInference.build(manual_file),
+            from_name=FromName.build(manual_file),
+            from_rna_type=FromRnaType.build(manual_file),
+            from_so_terms=FromSoTerms.build(manual_file, obo_file, max_depth),
+        )
 
-    def infer_using(self, family, given):
-        name = None
-        method = None
-        if isinstance(name, str):
-            name = given
-            method = getattr(self, given)
-        elif callable(given):
-            name = given.__class__.__name__
-            method = given
-        else:
-            raise ValueError("Not a usable method")
+    @property
+    def name(self):
+        return 'fallbacks'
 
-        result = method(family)
-        if isinstance(result, (list, tuple)):
-            result = {result}
-        elif isinstance(result, set):
-            pass
-        elif isinstance(result, str):
-            result = {result}
-        elif result is None:
-            result = set()
-        else:
-            raise ValueError("Unknown type of result: %s" % result)
+    def simplify(self, result):
+        if not result:
+            return result
 
         # Remove misc_RNA if possible.
-        if len(result) > 1 and 'misc_RNA' in result:
-            result.remove('misc_RNA')
+        if len(result) > 1 and INSDCTypes.misc_RNA in result:
+            result = result.remove(INSDCTypes.misc_RNA)
 
         # Remove other if possible. We remove misc_RNA first because other is
         # more specific.
-        if len(result) > 1 and 'other' in result:
-            result.remove('other')
+        if len(result) > 1 and INSDCTypes.other in result:
+            result = result.remove(INSDCTypes.other)
 
-        # Turn all miRNA into precursor_RNA as Rfam doesn't model the
-        # small miRNA's but the larger precursor_RNA's.
-        if result == {'miRNA'}:
-            result = {"precursor_RNA"}
+        return result
 
-        return InferredRfamType.build(family, name, result)
+    def __call__(self, family):
+        result = self.from_manual(family) or \
+            self.from_name(family) or \
+            self.from_rna_type(family)
 
-    def compare(self, family):
-        return [self.infer_using(family, m) for m in self.methods]
+        if not result or result.rna_types == {INSDCTypes.ncRNA}:
+            possible = self.from_so_terms(family)
+            if possible and possible.rna_types != {INSDCTypes.other} and \
+                    possible.rna_types != {INSDCTypes.ncRNA}:
+                result = possible
 
-    def infer(self, family):
-        for inference in self.compare(family):
-            if inference and \
-                    inference.rna_types != {INSDCTypes.other} and \
-                    inference.rna_type != {INSDCTypes.misc_RNA}:
-                return inference
+        if not result:
+            return InferredRfamType(
+                family=family,
+                method=self.name,
+                rna_types=frozenset()
+            )
 
-        return InferredRfamType(
-            family=family,
-            method='ALL',
-            rna_type=set()
-        )
+        return self.simplify(result)
 
 
-@click.command()
+# @click.group()
+# def main():
+#     pass
+
+
+@click.command('infer')
 @click.argument('link_file')
 @click.argument('family_file')
 @click.argument('obo_file')
@@ -318,21 +334,16 @@ class INSDCInference(object):
 @click.option('--max-depth', type=int, default=10)
 def main(link_file, family_file, obo_file, manual_file, max_depth):
     families = RfamFamily.build_all(link_file, family_file)
-    inference = INSDCInference.build(
+    inference = WithFallBacks.build(
         manual_file,
         obo_file,
         max_depth,
     )
 
-    headers = ['family'] + [m.__class__.__name__ for m in inference.methods]
+    headers = [f.name for f in attr.fields(InferredRfamType)]
     writer = csv.DictWriter(sys.stdout, fieldnames=headers)
     writer.writeheader()
-    for family in families:
-        row = {'family': family.id}
-        for result in inference.compare(family):
-            row[result.method] = ';'.join([str(r) for r in result.rna_type])
-            # print((result.family, result.method, result.rna_type))
-        writer.writerow(row)
+    writer.writerows(inference(family).simple() for family in families)
 
 
 if __name__ == "__main__":

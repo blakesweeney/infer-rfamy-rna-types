@@ -1,0 +1,64 @@
+{
+        "assignments": {
+                "SO:0000385":     "RNase_MRP_RNA",
+                "SO:0000386":     "RNase_P_RNA",
+                "SO:0000590":     "SRP_RNA",
+                "SO:0000405":     "Y_RNA",
+                "SO:0000644":     "antisense_RNA",
+                "SO:0000588":     "autocatalytically_spliced_intron",
+                "SO:0000602":     "guide_RNA",
+                "SO:0000380":     "hammerhead_ribozyme",
+                "SO:0001877":     "lncRNA",
+                "SO:0000276":     "precursor_RNA",
+                "SO:0000655":     "other",
+                "SO:0001244":     "precursor_RNA",
+                "SO:0001035":     "piRNA",
+                "SO:0000454":     "rasiRNA",
+                "SO:0000374":     "ribozyme",
+                "SO:0000013":     "scRNA",
+                "SO:0000646":     "siRNA",
+                "SO:0000274":     "snRNA",
+                "SO:0000275":     "snoRNA",
+                "SO:0000390":     "telomerase_RNA",
+                "SO:0000584":     "tmRNA",
+                "SO:0000404":     "vault_RNA",
+                "SO:0000252":     "rRNA",
+                "SO:0000253":     "tRNA",
+                "SO:0001463":     "lncRNA",
+                "SO:0001641":     "lncRNA",
+                "SO:0000077":     "antisense_RNA",
+                "SO:0000385":     "RNase_MRP_RNA",
+                "SO:0000370":     "other"
+        },
+
+        "hardcoded": { },
+
+        "informative_names": {
+                "srp": "SRP_RNA",
+                "y_rna": "Y_RNA",
+                "hammerhead": "hammerhead_ribozyme",
+                "group-ii": "autocatalytically_spliced_intron",
+                "vault": "vault_RNA",
+                "tmrna": "tmRNA",
+                "rnase_p": "RNase_P_RNA",
+                "rnase_mrp": "RNase_MRP_RNA",
+                "telomerase": "telomerase_RNA"
+        },
+
+        "bad_rna_types": [
+                "CRISPR",
+                "antitoxin"
+        ],
+
+        "rna_type_mapping": {
+                "Gene; lncRNA;": "lncRNA",
+                "Gene; miRNA;": "precursor_RNA",
+                "Gene; rRNA;": "rRNA",
+                "Gene; sRNA;": "other",
+                "Gene; snRNA;": "snRNA",
+                "Gene; snRNA; snoRNA; CD-box;": "snoRNA",
+                "Gene; snRNA; snoRNA; HACA-box;": "snoRNA",
+                "Gene; snRNA; snoRNA; scaRNA;": "snoRNA",
+                "Gene; tRNA;": "tRNA"
+        }
+}
