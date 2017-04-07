@@ -214,6 +214,29 @@ class FromRnaType(object):
 
 @attr.s()
 class FromSoTerms(object):
+    mapping = attr.ib(validator=is_a(dict))
+
+    @classmethod
+    def build(cls, manual_file):
+        with open(manual_file, 'r', 'utf-8') as handle:
+            loaded = json.load(handle)
+            return cls(mapping=loaded['assignments'])
+
+    @property
+    def name(self):
+        return 'so-term'
+
+    def __call__(self, family):
+        mapped = set(self.mapping.get(so, None) for so in family.so_terms)
+        return InferredRfamType.build(
+            family,
+            self.name,
+            mapped
+        )
+
+
+@attr.s()
+class SoTermSearch(object):
     graph = attr.ib()
     max_depth = attr.ib(validator=is_a(int))
 
@@ -234,7 +257,7 @@ class FromSoTerms(object):
 
     @property
     def name(self):
-        return 'so-term'
+        return 'so-search'
 
     def dfs(self, term, depth):
         if term not in self.graph:
@@ -271,6 +294,7 @@ class WithFallBacks(object):
     from_name = attr.ib(validator=is_a(FromName))
     from_rna_type = attr.ib(validator=is_a(FromRnaType))
     from_so_terms = attr.ib(validator=is_a(FromSoTerms))
+    so_term_search = attr.ib(validator=is_a(SoTermSearch))
 
     @classmethod
     def build(cls, manual_file, obo_file, max_depth):
@@ -278,7 +302,8 @@ class WithFallBacks(object):
             from_manual=ManualInference.build(manual_file),
             from_name=FromName.build(manual_file),
             from_rna_type=FromRnaType.build(manual_file),
-            from_so_terms=FromSoTerms.build(manual_file, obo_file, max_depth),
+            from_so_terms=FromSoTerms.build(manual_file),
+            so_term_search=SoTermSearch.build(manual_file, obo_file, max_depth),
         )
 
     @property
@@ -303,12 +328,12 @@ class WithFallBacks(object):
     def __call__(self, family):
         result = self.from_manual(family) or \
             self.from_name(family) or \
-            self.from_rna_type(family)
+            self.from_rna_type(family) or \
+            self.from_so_terms(family)
 
-        if not result or result.rna_types == {INSDCTypes.ncRNA}:
-            possible = self.from_so_terms(family)
-            if possible and possible.rna_types != {INSDCTypes.other} and \
-                    possible.rna_types != {INSDCTypes.ncRNA}:
+        if not result:
+            possible = self.so_term_search(family)
+            if possible and possible.rna_types != {INSDCTypes.other}:
                 result = possible
 
         if not result:
