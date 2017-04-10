@@ -115,3 +115,4 @@ shell.nix
 data/so-simple.obo
 data/go-basic.obo
 data/family.txt
+bin/obonet/
